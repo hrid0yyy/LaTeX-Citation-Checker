@@ -1,0 +1,723 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>LaTeX Citation Checker</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Syne:wght@400;600;800&display=swap" rel="stylesheet"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0b0d11;
+    --surface: #12151c;
+    --surface2: #1a1f2b;
+    --border: #252b38;
+    --accent: #e8ff47;
+    --accent2: #ff6b6b;
+    --accent3: #47d4ff;
+    --text: #e4e8f0;
+    --muted: #6b7384;
+    --mono: 'Space Mono', monospace;
+    --sans: 'Syne', sans-serif;
+  }
+
+  html, body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Grid background */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(232,255,71,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(232,255,71,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .wrapper {
+    position: relative;
+    z-index: 1;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 40px 24px 80px;
+  }
+
+  /* ── HEADER ── */
+  header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: 48px;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+
+  .logo-block {}
+  .logo-block .tag {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--accent);
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+    display: block;
+  }
+
+  h1 {
+    font-size: clamp(28px, 5vw, 52px);
+    font-weight: 800;
+    line-height: 1.05;
+    letter-spacing: -1px;
+  }
+
+  h1 em {
+    font-style: normal;
+    color: var(--accent);
+  }
+
+  .subtitle {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 10px;
+    max-width: 360px;
+    line-height: 1.6;
+  }
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    background: rgba(232,255,71,0.08);
+    border: 1px solid rgba(232,255,71,0.2);
+    border-radius: 4px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--accent);
+    letter-spacing: 1px;
+    margin-top: 8px;
+  }
+
+  /* ── GRID ── */
+  .input-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    margin-bottom: 20px;
+  }
+  @media (max-width: 700px) {
+    .input-grid { grid-template-columns: 1fr; }
+  }
+
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    transition: border-color 0.2s;
+  }
+
+  .panel:focus-within {
+    border-color: rgba(232,255,71,0.35);
+    box-shadow: 0 0 0 1px rgba(232,255,71,0.08), 0 4px 32px rgba(0,0,0,0.3);
+  }
+
+  .panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface2);
+    gap: 10px;
+  }
+
+  .panel-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+  }
+
+  .dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .dot-source { background: var(--accent); box-shadow: 0 0 6px var(--accent); }
+  .dot-summary { background: var(--accent3); box-shadow: 0 0 6px var(--accent3); }
+
+  .count-chip {
+    font-family: var(--mono);
+    font-size: 10px;
+    padding: 2px 8px;
+    border-radius: 20px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--muted);
+    transition: all 0.2s;
+  }
+
+  textarea {
+    width: 100%;
+    flex: 1;
+    min-height: 220px;
+    background: transparent;
+    border: none;
+    outline: none;
+    resize: vertical;
+    padding: 18px;
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--text);
+    line-height: 1.7;
+    caret-color: var(--accent);
+  }
+
+  textarea::placeholder {
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.8;
+  }
+
+  /* ── ACTION ── */
+  .action-row {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    margin-bottom: 32px;
+    flex-wrap: wrap;
+  }
+
+  .btn {
+    font-family: var(--sans);
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    padding: 13px 28px;
+    transition: all 0.15s;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .btn-primary {
+    background: var(--accent);
+    color: #0b0d11;
+  }
+  .btn-primary:hover {
+    background: #f5ff6e;
+    transform: translateY(-1px);
+    box-shadow: 0 8px 24px rgba(232,255,71,0.25);
+  }
+  .btn-primary:active { transform: translateY(0); }
+
+  .btn-ghost {
+    background: transparent;
+    color: var(--muted);
+    border: 1px solid var(--border);
+  }
+  .btn-ghost:hover { color: var(--text); border-color: var(--muted); }
+
+  /* ── RESULTS ── */
+  .results {
+    display: none;
+    flex-direction: column;
+    gap: 24px;
+    animation: fadeUp 0.35s ease forwards;
+  }
+
+  .results.visible { display: flex; }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* stats bar */
+  .stats-bar {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+  }
+  @media (max-width: 500px) { .stats-bar { grid-template-columns: 1fr 1fr; } }
+
+  .stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .stat-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+  }
+  .stat-card.s-source::before { background: var(--accent); }
+  .stat-card.s-summary::before { background: var(--accent3); }
+  .stat-card.s-missing::before { background: var(--accent2); }
+
+  .stat-num {
+    font-size: 40px;
+    font-weight: 800;
+    line-height: 1;
+    letter-spacing: -2px;
+    margin-bottom: 4px;
+  }
+  .s-source .stat-num { color: var(--accent); }
+  .s-summary .stat-num { color: var(--accent3); }
+  .s-missing .stat-num { color: var(--accent2); }
+
+  .stat-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 2px;
+  }
+
+  /* result panels */
+  .result-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+  @media (max-width: 640px) { .result-grid { grid-template-columns: 1fr; } }
+
+  .result-panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+
+  .result-panel.missing {
+    grid-column: 1 / -1;
+    border-color: rgba(255,107,107,0.25);
+  }
+
+  .result-header {
+    padding: 14px 18px;
+    background: var(--surface2);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+  }
+
+  .result-header-title {
+    font-size: 13px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .icon { font-size: 14px; }
+
+  .result-body {
+    padding: 16px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    min-height: 60px;
+  }
+
+  .chip {
+    font-family: var(--mono);
+    font-size: 12px;
+    padding: 5px 12px;
+    border-radius: 20px;
+    border: 1px solid transparent;
+    cursor: default;
+    transition: transform 0.1s;
+  }
+
+  .chip:hover { transform: scale(1.04); }
+
+  .chip-source {
+    background: rgba(232,255,71,0.08);
+    border-color: rgba(232,255,71,0.2);
+    color: var(--accent);
+  }
+
+  .chip-summary {
+    background: rgba(71,212,255,0.08);
+    border-color: rgba(71,212,255,0.2);
+    color: var(--accent3);
+  }
+
+  .chip-missing {
+    background: rgba(255,107,107,0.1);
+    border-color: rgba(255,107,107,0.3);
+    color: var(--accent2);
+  }
+
+  .chip-shared {
+    background: rgba(160,160,255,0.08);
+    border-color: rgba(160,160,255,0.2);
+    color: #a0a0ff;
+  }
+
+  .empty-msg {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--muted);
+    padding: 4px;
+  }
+
+  /* copy btn inside header */
+  .copy-btn {
+    font-family: var(--mono);
+    font-size: 10px;
+    padding: 4px 10px;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--muted);
+    cursor: pointer;
+    transition: all 0.15s;
+    letter-spacing: 0.5px;
+  }
+  .copy-btn:hover { color: var(--text); border-color: var(--muted); }
+
+  /* divider */
+  .section-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 3px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+  .section-label::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  /* no-results state */
+  .no-input {
+    background: var(--surface);
+    border: 1px dashed var(--border);
+    border-radius: 12px;
+    padding: 40px;
+    text-align: center;
+    display: none;
+  }
+  .no-input.visible { display: block; }
+  .no-input p {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--muted);
+    line-height: 1.8;
+  }
+
+  footer {
+    margin-top: 60px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    text-align: center;
+    letter-spacing: 1px;
+  }
+</style>
+</head>
+<body>
+<div class="wrapper">
+
+  <!-- HEADER -->
+  <header>
+    <div class="logo-block">
+      <span class="tag">// tool v1.0</span>
+      <h1>LaTeX <em>Citation</em><br>Checker</h1>
+      <p class="subtitle">Paste your source and summary texts — instantly see which <code>\cite{}</code> keys are missing.</p>
+    </div>
+    <div class="badge">
+      <span>▸</span> re.findall(r'\\cite\{([^}]*)\}', text)
+    </div>
+  </header>
+
+  <!-- INPUTS -->
+  <div class="input-grid">
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title">
+          <span class="dot dot-source"></span>
+          Source Text
+        </div>
+        <span class="count-chip" id="src-count">0 citations</span>
+      </div>
+      <textarea id="source" placeholder="Paste your full source LaTeX text here...&#10;&#10;Example:&#10;As shown by \cite{Smith2020} and \cite{Jones2019,Lee2021},&#10;the results indicate \cite{Brown2018} confirms this."></textarea>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title">
+          <span class="dot dot-summary"></span>
+          Summary Text
+        </div>
+        <span class="count-chip" id="sum-count">0 citations</span>
+      </div>
+      <textarea id="summary" placeholder="Paste your summary/condensed LaTeX text here...&#10;&#10;Example:&#10;As noted by \cite{Smith2020}, results&#10;are consistent with prior work \cite{Brown2018}."></textarea>
+    </div>
+  </div>
+
+  <!-- ACTIONS -->
+  <div class="action-row">
+    <button class="btn btn-primary" onclick="analyze()">
+      <span>▶</span> Analyze Citations
+    </button>
+    <button class="btn btn-ghost" onclick="clearAll()">
+      ✕ Clear All
+    </button>
+  </div>
+
+  <!-- NO INPUT -->
+  <div class="no-input" id="no-input">
+    <p>No \cite{} keys found in the provided text.<br>Make sure your text contains LaTeX citation commands.</p>
+  </div>
+
+  <!-- RESULTS -->
+  <div class="results" id="results">
+    <div class="section-label">Analysis Results</div>
+
+    <div class="stats-bar">
+      <div class="stat-card s-source">
+        <div class="stat-num" id="r-src-n">0</div>
+        <div class="stat-label">Source Citations</div>
+      </div>
+      <div class="stat-card s-summary">
+        <div class="stat-num" id="r-sum-n">0</div>
+        <div class="stat-label">Summary Citations</div>
+      </div>
+      <div class="stat-card s-missing">
+        <div class="stat-num" id="r-mis-n">0</div>
+        <div class="stat-label">Missing in Summary</div>
+      </div>
+    </div>
+
+    <div class="result-panel missing">
+      <div class="result-header">
+        <div class="result-header-title">
+          <span class="icon">⚠</span>
+          Missing Citations
+          <span class="count-chip" id="mis-chip">0</span>
+        </div>
+        <button class="copy-btn" onclick="copyList('missing')">Copy list</button>
+      </div>
+      <div class="result-body" id="missing-body"></div>
+    </div>
+
+    <div class="result-grid">
+      <div class="result-panel">
+        <div class="result-header">
+          <div class="result-header-title">
+            <span class="dot dot-source" style="width:6px;height:6px"></span>
+            Source Keys
+          </div>
+          <button class="copy-btn" onclick="copyList('source')">Copy</button>
+        </div>
+        <div class="result-body" id="source-body"></div>
+      </div>
+
+      <div class="result-panel">
+        <div class="result-header">
+          <div class="result-header-title">
+            <span class="dot dot-summary" style="width:6px;height:6px"></span>
+            Summary Keys
+          </div>
+          <button class="copy-btn" onclick="copyList('summary')">Copy</button>
+        </div>
+        <div class="result-body" id="summary-body"></div>
+      </div>
+
+      <div class="result-panel">
+        <div class="result-header">
+          <div class="result-header-title">
+            <span style="color:#a0a0ff">✓</span>
+            Shared (present in both)
+          </div>
+          <button class="copy-btn" onclick="copyList('shared')">Copy</button>
+        </div>
+        <div class="result-body" id="shared-body"></div>
+      </div>
+
+      <div class="result-panel">
+        <div class="result-header">
+          <div class="result-header-title">
+            <span style="color:var(--accent3)">+</span>
+            Only in Summary (extra)
+          </div>
+          <button class="copy-btn" onclick="copyList('extra')">Copy</button>
+        </div>
+        <div class="result-body" id="extra-body"></div>
+      </div>
+    </div>
+  </div>
+
+  <footer>LATEX CITATION CHECKER &nbsp;·&nbsp; PASTE · ANALYZE · FIX</footer>
+</div>
+
+<script>
+  // ── Core logic (matches Python's extract_citations) ──
+  function extractCitations(text) {
+    const regex = /\\cite\{([^}]*)\}/g;
+    const citations = new Set();
+    let m;
+    while ((m = regex.exec(text)) !== null) {
+      m[1].split(',').forEach(c => {
+        const key = c.trim();
+        if (key) citations.add(key);
+      });
+    }
+    return citations;
+  }
+
+  // ── Live counts in panel headers ──
+  const sourceTA = document.getElementById('source');
+  const summaryTA = document.getElementById('summary');
+  const srcCount = document.getElementById('src-count');
+  const sumCount = document.getElementById('sum-count');
+
+  function updateCounts() {
+    const s = extractCitations(sourceTA.value).size;
+    const d = extractCitations(summaryTA.value).size;
+    srcCount.textContent = `${s} citation${s !== 1 ? 's' : ''}`;
+    sumCount.textContent = `${d} citation${d !== 1 ? 's' : ''}`;
+  }
+
+  sourceTA.addEventListener('input', updateCounts);
+  summaryTA.addEventListener('input', updateCounts);
+
+  // ── chip builder ──
+  function makeChip(key, cls) {
+    const span = document.createElement('span');
+    span.className = `chip ${cls}`;
+    span.textContent = key;
+    span.title = `\\cite{${key}}`;
+    return span;
+  }
+
+  function populatePanel(id, keys, cls) {
+    const body = document.getElementById(id);
+    body.innerHTML = '';
+    const arr = [...keys].sort((a, b) => a.localeCompare(b, undefined, {sensitivity:'base'}));
+    if (!arr.length) {
+      const m = document.createElement('span');
+      m.className = 'empty-msg';
+      m.textContent = '— none —';
+      body.appendChild(m);
+    } else {
+      arr.forEach(k => body.appendChild(makeChip(k, cls)));
+    }
+    return arr;
+  }
+
+  // stored for copy
+  const stored = {};
+
+  function analyze() {
+    const srcText = sourceTA.value;
+    const sumText = summaryTA.value;
+
+    const sourceCits  = extractCitations(srcText);
+    const summaryCits = extractCitations(sumText);
+    const missing     = new Set([...sourceCits].filter(x => !summaryCits.has(x)));
+    const shared      = new Set([...sourceCits].filter(x =>  summaryCits.has(x)));
+    const extra       = new Set([...summaryCits].filter(x => !sourceCits.has(x)));
+
+    const noInput = document.getElementById('no-input');
+    const results = document.getElementById('results');
+
+    if (sourceCits.size === 0 && summaryCits.size === 0) {
+      results.classList.remove('visible');
+      noInput.classList.add('visible');
+      return;
+    }
+
+    noInput.classList.remove('visible');
+    results.classList.remove('visible');
+    void results.offsetWidth; // force reflow for re-animation
+    results.classList.add('visible');
+
+    // stats
+    document.getElementById('r-src-n').textContent = sourceCits.size;
+    document.getElementById('r-sum-n').textContent = summaryCits.size;
+    document.getElementById('r-mis-n').textContent = missing.size;
+    document.getElementById('mis-chip').textContent = missing.size;
+
+    // panels
+    stored.missing  = populatePanel('missing-body',  missing,     'chip-missing');
+    stored.source   = populatePanel('source-body',   sourceCits,  'chip-source');
+    stored.summary  = populatePanel('summary-body',  summaryCits, 'chip-summary');
+    stored.shared   = populatePanel('shared-body',   shared,      'chip-shared');
+    stored.extra    = populatePanel('extra-body',    extra,       'chip-summary');
+
+    // missing panel highlight
+    const mp = document.querySelector('.result-panel.missing');
+    if (missing.size > 0) {
+      mp.style.borderColor = 'rgba(255,107,107,0.4)';
+    } else {
+      mp.style.borderColor = 'rgba(71,212,255,0.25)';
+    }
+  }
+
+  function clearAll() {
+    sourceTA.value = '';
+    summaryTA.value = '';
+    document.getElementById('results').classList.remove('visible');
+    document.getElementById('no-input').classList.remove('visible');
+    updateCounts();
+  }
+
+  function copyList(type) {
+    const keys = stored[type];
+    if (!keys || !keys.length) return;
+    const text = keys.join(', ');
+    navigator.clipboard.writeText(text).then(() => {
+      // brief feedback
+      const btns = document.querySelectorAll('.copy-btn');
+      btns.forEach(b => {
+        if (b.getAttribute('onclick') === `copyList('${type}')`) {
+          const orig = b.textContent;
+          b.textContent = '✓ Copied';
+          setTimeout(() => b.textContent = orig, 1200);
+        }
+      });
+    });
+  }
+
+  // Keyboard shortcut: Ctrl/Cmd+Enter to analyze
+  document.addEventListener('keydown', e => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') analyze();
+  });
+</script>
+</body>
+</html>
